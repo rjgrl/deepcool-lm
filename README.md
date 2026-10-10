@@ -1,305 +1,213 @@
-# Deepcool LM Series LCD Driver for Linux
+# DeepCool LM
 
-A comprehensive Linux driver for Deepcool LM series AIO coolers with LCD displays (320x240). Features a polished system monitoring interface with real-time CPU/GPU temperature display, CPU usage tracking, and custom image support.
+A small Windows 10/11 app for the LCD on DeepCool LM-series AIO coolers (320×240 screen). It shows live CPU and GPU readings in a layout you design, or your own pictures and GIFs. Everything is one `deepcool-lm.exe` that uses about as much memory as a tray icon.
 
-![LM360 Display](https://img.shields.io/badge/Resolution-320x240-blue) ![License](https://img.shields.io/badge/License-MIT-green)
+![Resolution](https://img.shields.io/badge/Resolution-320x240-blue) ![License](https://img.shields.io/badge/License-MIT-green)
 
-![Deepcool LM360 Display Preview](lm360.png)
+![DeepCool LM360 screen](lm360.png)
 
-> **Note**: This driver is designed for Deepcool LM series coolers. Currently tested and confirmed working on **LM360** only. Other LM series models (LM240, LM280, etc.) may work but have not been tested. Contributions and testing reports are welcome!
+> Tested on the **LM360**. Other LM models with USB ID `3633:0026` (LM240, LM280, ...) will probably work but haven't been tested. Reports are welcome.
 
 ## Features
 
-- 🎨 **Polished System Monitor** - Beautiful dual-panel interface with CPU and GPU stats
-- 🌡️ **Temperature Monitoring** - Real-time CPU and GPU temperature display with color gradients
-- 📊 **Usage Tracking** - CPU usage percentage with animated progress bars
-- ⚡ **CPU Frequency** - Current CPU frequency display
-- 🖼️ **Custom Images** - Display any image on the LCD (auto-resized to 320x240)
-- 🔆 **Brightness Control** - Adjust display brightness
-- 🔄 **Persistent State** - Service maintains display mode (monitor/image/color)
-- 🎯 **Clean UI** - Modern design with rounded borders, icons, and smooth progress bars
-- 🔌 **IPC Communication** - CLI communicates with running service without conflicts
+- **Layout editor**: drag Text, Bar, Gauge, Graph and Panel widgets onto a picture of the pump cap. Each one can show any sensor LibreHardwareMonitor reports (temperatures, clocks, loads, fans, power), plus RAM, disk and network.
+- **Fonts**: any font installed on your PC, with bold and italic, for every text widget and gauge value
+- **Backgrounds**: a color, or a picture or animated GIF with its own fit and brightness
+- **Images mode**: a slideshow of your pictures and GIFs
+- **Any mounting**: rotate the picture in quarter turns to match how the cooler is mounted
+- **Brightness** slider, and a **test pattern** for checking colors and orientation
+- **Tray icon** with quick settings; changes apply instantly
+- **Command line**: `deepcool-lm brightness 70`, `deepcool-lm image photo.png` and more
+- **Light on resources**: no Python, no runtime, no third-party libraries. It uses only Windows itself (WinUSB, GDI+), and long GIFs are decoded frame by frame.
 
-## Display Preview
+## Install
 
-The monitor interface features:
-- **CPU Section** (Top): Temperature, usage %, frequency, and usage progress bar
-- **GPU Section** (Bottom): Temperature with visual temperature gradient
-- **Color-coded Temps**: Cool blue (< 40°C) → Green (< 60°C) → Yellow (< 75°C) → Orange (< 85°C) → Red (85°C+)
-- **Rounded Containers**: Modern card-based layout with 8px rounded corners
-- **Icons**: Visual indicators (⚙ for CPU, ▣ for GPU)
+### 1. Build the app
 
-## Installation
+Install Rust from [rustup.rs](https://rustup.rs) (accept the default *Visual Studio Build Tools* option when it offers it). Then, in the project folder:
 
-### Arch Linux (AUR)
-
-```bash
-yay -S deepcool-lm
+```powershell
+cargo build --release
 ```
 
-The service will automatically start if your device is connected!
+Nothing is downloaded besides Rust itself. The app is `target\release\deepcool-lm.exe`.
 
-### Other Distributions
+### 2. Check the USB driver (normally nothing to do)
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/daedlock/deepcool-lm/main/install.sh | sudo bash
+The cooler asks Windows for Microsoft's built-in **WinUSB** driver by itself (it matches `USB\MS_COMP_WINUSB`). That's the same driver DeepCool's app uses. In Device Manager it shows as **LM-Series** under **Universal Serial Bus devices**. The installer checks this for you.
+
+**Don't use Zadig** (or other libusb driver installers) on this cooler. Zadig installs its own generated copy of the driver, which DeepCool's app can't see, and Windows keeps reusing it. If you already did, remove those packages:
+
+```powershell
+pnputil /enum-devices /deviceid "USB\VID_3633&PID_0026" /drivers
 ```
 
-Or download and run manually:
-```bash
-curl -O https://raw.githubusercontent.com/daedlock/deepcool-lm/main/install.sh
-chmod +x install.sh
-sudo ./install.sh
+For every matching driver whose provider is **libusbK** or **libwdi**, run `pnputil /delete-driver oemNN.inf /uninstall /force`. Then use Device Manager → **Action → Scan for hardware changes**. Afterwards the only matching driver should be Microsoft's `winusb.inf`.
+
+### 3. Temperatures: LibreHardwareMonitor
+
+Windows has no built-in API for CPU temperatures, so the app reads them from [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases):
+
+- Run it **as administrator** (needed to read CPU sensors).
+- Turn on **Options → Remote Web Server → Run**. The app reads `http://127.0.0.1:8085/data.json`. If you changed the port, set the `DEEPCOOL_LM_LHM_URL` environment variable to match.
+- Turn on **Options → Run On Windows Startup** (and optionally *Start Minimized* / *Minimize To Tray*).
+
+Without it, CPU temperature shows 0°. NVIDIA GPU temperature and load still work through the NVIDIA driver.
+
+> LibreHardwareMonitor's web server listens on all network interfaces by default, so other devices on your network could read your sensor values. When Windows Firewall asks, blocking it is fine: the app connects locally.
+
+### 4. Install
+
+In PowerShell or Terminal **as administrator**, in the project folder:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-## Post-Installation Setup
+The installer:
+- copies the app to `C:\Program Files\deepcool-lm` and adds the `deepcool-lm` command to PATH
+- adds a **DeepCool LM** Start menu shortcut
+- asks whether to start the app when you sign in
+- prepares the settings folder `C:\ProgramData\deepcool-lm`
+- removes the older Python version of this project if it finds it
+- checks the USB driver and LibreHardwareMonitor and tells you what's missing
 
-### Configure Temperature Sensors
+If the app isn't built yet and Rust is installed, the installer offers to build it. Options: `-Yes` accepts every prompt, and `-Rotation 0|90|180|270` (or `-Orientation landscape|portrait`) sets the screen orientation.
 
-The driver requires `lm_sensors` for temperature monitoring:
+### Without the installer
 
-```bash
-sudo sensors-detect  # Answer YES to save configuration
-sudo systemctl enable --now lm_sensors
-```
+`deepcool-lm.exe` also works on its own: copy it anywhere and run it. The dashboard is built in and it needs no other files. On first save it creates the settings folder in `C:\ProgramData\deepcool-lm`. To start it when you sign in, right-click its tray icon and pick **Start when I sign in** (or run `deepcool-lm autostart on`). If you move the exe later, start it once from its new place and the sign-in entry follows it.
 
-### Install Dependencies (Non-AUR)
+What the installer adds on top: the `deepcool-lm` command on PATH, the Start menu shortcut, and the USB and temperature checks.
 
-If installing via `install.sh`, ensure these are installed first:
+## Using it
 
-```bash
-# Arch Linux
-sudo pacman -S lm_sensors python-pyusb python-psutil python-pillow
+### Tray icon and dashboard
 
-# Ubuntu/Debian
-sudo apt install lm-sensors python3-usb python3-psutil python3-pil
+Look for the **DeepCool LM** icon near the clock. Click it to open the dashboard. Right-click it to:
+- switch between Monitor and Images mode
+- change orientation and brightness
+- show a test pattern
+- turn **Start when I sign in** on or off
+- quit
 
-# Fedora
-sudo dnf install lm_sensors python3-pyusb python3-psutil python3-pillow
-```
+The app *is* the screen driver. It runs the screen from when it starts until you quit, waits for the cooler if it isn't ready, and reconnects when it's unplugged. **Quit** turns the screen off and closes the dashboard. The screen stays off until you sign in again, because nothing runs before sign-in.
 
-## Usage
+The dashboard has three sections:
 
-### Systemd Service (Recommended)
+- **Display**: Monitor or Images mode, screen orientation, refresh rate, brightness and the test pattern.
+- **Layout**: the editor. Add widgets, drag them into place, pull a corner to resize, and pick a sensor, colors and font for each. Landscape and portrait have separate layouts. Undo, redo and keyboard nudging work as you'd expect.
+- **Images**: drop in PNG, JPG, GIF or BMP files. Transparent parts show the background color you pick. Choose which images to show, their order, how they fit, and how long each stays up.
 
-The service runs the system monitor automatically in the background:
+The preview uses the same drawing code as the cooler. **Save to cooler** applies the changes straight away and stores them in `C:\ProgramData\deepcool-lm\config.json`.
 
-```bash
-# Start the service
-sudo systemctl start deepcool-lm
+Text widgets understand placeholders:
+- `{value}` (the widget's own sensor), `{unit}` and `{name}`
+- `{time}`, `{seconds}`, `{date}` and `{day}`
+- any other sensor by its id, with optional decimals, e.g. `Usage: {value}% at {cpu.clock|2} GHz`
 
-# Enable on boot
-sudo systemctl enable deepcool-lm
+**Fonts**: each text widget (and each gauge's value) can use any font installed on your PC, in bold, italic or both. Arrows and symbols such as ⚙ ▣ ▲ always come from Segoe UI Symbol, so they show up whatever font you choose. Fonts you install while the app is running appear in the list after you restart the app.
 
-# Check status
-sudo systemctl status deepcool-lm
+The dashboard opens in an Edge app window with its own small profile, so it doesn't touch your normal Edge windows. It's served by the app on a random local port and only answers requests carrying a per-session key.
 
-# View logs
-sudo journalctl -u deepcool-lm -f
+### Screen orientation
 
-# Stop the service
-sudo systemctl stop deepcool-lm
-```
+| Setting | Rotation | Picture |
+|---|---|---|
+| Landscape | 0° | wider than tall |
+| Portrait | 90° (clockwise) | taller than wide |
+| Landscape, upside down | 180° | |
+| Portrait, upside down | 270° | |
 
-### CLI Commands
+Change it from the dashboard, the tray menu, or `deepcool-lm settings --set-rotation 90`. The editor always shows the picture upright.
 
-The `deepcool-lm` command provides various functions. When the service is running, commands communicate via IPC without conflicts:
+### Brightness
 
-#### System Monitor
-```bash
-# Start monitoring (when service is not running)
-sudo deepcool-lm monitor
+Brightness is a level from 0 to 100. The dashboard slider changes it live, and **Save to cooler** stores it so the app sets it every time it starts. In a terminal, run `deepcool-lm brightness 70`. `up` and `down` send the levels 97 and 29, which are the "brighter" and "dimmer" commands DeepCool's own software uses.
 
-# Switch back to monitoring mode (when service is running)
-sudo deepcool-lm monitor
-```
+### Command line
 
-#### Display Custom Image
-```bash
-# Display any image (will be resized to 320x240)
-# Image persists until you switch modes
-sudo deepcool-lm image /path/to/photo.jpg
-sudo deepcool-lm image ~/wallpaper.png
-```
+From any new terminal, without admin rights:
 
-#### Display Solid Color
-```bash
-# Black screen
-sudo deepcool-lm solid --color 0 0 0
-
-# Red screen
-sudo deepcool-lm solid --color 255 0 0
-
-# Custom RGB color
-sudo deepcool-lm solid --color 100 150 200
-```
-
-#### Brightness Control
-```bash
-# Increase brightness
-sudo deepcool-lm brightness up
-
-# Decrease brightness
-sudo deepcool-lm brightness down
-```
-
-#### Show Help
-```bash
+```powershell
+deepcool-lm image C:\Users\me\Pictures\wallpaper.png
+deepcool-lm solid --color 255 0 0
+deepcool-lm monitor              # back to the live screen
+deepcool-lm brightness 70        # 0-100, or up / down
+deepcool-lm zen                  # toggle the screen on/off
+deepcool-lm test-pattern 10      # color bars for 10 seconds
+deepcool-lm settings             # show saved settings
+deepcool-lm settings --set-rotation 90 --brightness 70 --mode monitor
+deepcool-lm autostart on|off     # start when you sign in
+deepcool-lm info                 # USB details (quit the app first)
 deepcool-lm --help
 ```
 
-### Usage Examples
+Commands go to the running app. When it isn't running, they talk to the cooler directly. If port 36330 is taken by another program, set `DEEPCOOL_LM_PORT` (for your account, so the app and the command line both see it).
 
-**Typical workflow:**
-```bash
-# Service is running showing CPU/GPU monitoring
+### Files
 
-# Display a custom image
-sudo deepcool-lm image ~/my-image.jpg
-# Image stays on screen
+| What | Where |
+|---|---|
+| App | `C:\Program Files\deepcool-lm\app\deepcool-lm.exe` |
+| Settings and uploaded images | `C:\ProgramData\deepcool-lm\` |
+| Log | `%LOCALAPPDATA%\deepcool-lm\tray.log` |
+| Start at sign-in | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, value `DeepCool LM` |
 
-# Switch back to monitoring
-sudo deepcool-lm monitor
-# Back to CPU/GPU stats
+## Uninstall
 
-# Adjust brightness while monitoring
-sudo deepcool-lm brightness up
+```powershell
+powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 ```
 
-## Uninstallation
-
-```bash
-sudo ./uninstall.sh
-```
-
-This will:
-- Stop and disable the systemd service
-- Remove the service file
-- Remove the CLI tool
-- Clean up socket files
-
-## Technical Details
-
-### Compatibility
-- **Tested Models**: Deepcool LM360
-- **Likely Compatible**: Other LM series models (LM240, LM280, etc.) with USB VID:PID `3633:0026`
-- **Status**: Untested on other LM series models - please report compatibility!
-
-### Device Information
-- **Vendor ID**: `0x3633`
-- **Product ID**: `0x0026`
-- **Display**: 320x240 RGB565
-- **Protocol**: USB Bulk Transfer
-- **Endpoint**: `0x01` (OUT)
-
-### Frame Format
-- **Header**: 13 bytes (`aa 08 00 00 01 00 58 02 00 2c 01 bc 11`)
-- **Framebuffer**: 153,600 bytes (320 × 240 × 2)
-- **Pixel Format**: RGB565 little-endian
-
-### IPC Communication
-- **Socket**: `/var/run/deepcool-lm.sock`
-- **Protocol**: Unix domain socket with JSON commands
-- **Supported actions**: monitor, image, solid, brightness_up, brightness_down
-
-### Temperature Sources
-- **CPU**: `coretemp` sensor (first core)
-- **GPU**: `nvme` sensor (if available)
-
-The driver uses `psutil.sensors_temperatures()` to read system temperatures. You can check available sensors with:
-
-```bash
-sensors
-```
+This removes the app, the sign-in entry, the Start menu shortcut, the PATH entry, and the settings folder with your layouts and images. The cooler keeps using Windows' own WinUSB driver, so DeepCool's app works again straight away.
 
 ## Troubleshooting
 
-### Device Not Found
-```bash
-# Check if device is detected
-lsusb | grep 3633
-
-# Should show: Bus XXX Device XXX: ID 3633:0026
-```
-
-### Permission Denied
-Make sure you're running with `sudo`:
-```bash
-sudo deepcool-lm monitor
-```
-
-### Service Won't Start
-Check logs for errors:
-```bash
-sudo journalctl -u deepcool-lm -n 50
-```
-
-### Screen Goes Black When CLI Stops
-This is expected behavior when running CLI directly. Use the systemd service for persistent display:
-```bash
-sudo systemctl start deepcool-lm
-sudo systemctl enable deepcool-lm  # Start on boot
-```
-
-### Missing Temperature Sensors
-If temps show as 0°C, check available sensors:
-```bash
-sensors
-```
-
-You may need to load kernel modules:
-```bash
-sudo modprobe coretemp  # For Intel CPUs
-```
+- **"Failed to connect to LM360 (device not found)"**: check Device Manager for `USB\VID_3633&PID_0026`, and that the cooler's USB cable is on an internal USB header.
+- **"Access denied"**: another program has the cooler open, usually DeepCool's software or a second copy of this app. Only one program can use it at a time.
+- **"The device isn't using the WinUSB driver"**: see [Check the USB driver](#2-check-the-usb-driver-normally-nothing-to-do).
+- **Picture sideways or upside down**: change the screen orientation.
+- **Colors look wrong**: use **Show test pattern** and compare the cooler with the preview.
+- **Screen stays dark but the log shows frames**: the LCD is switched off inside the cooler, which remembers that across reboots. Quit DeepCool LM, open DeepCool's app, turn on its **Zen mode** (the screen lights up), close DeepCool's app completely, and start DeepCool LM again. `deepcool-lm zen` toggles the same setting.
+- **CPU shows 0°**: LibreHardwareMonitor isn't running as administrator, or its web server is off. Open `http://127.0.0.1:8085/data.json` in a browser to check.
+- **Anything else**: look at `%LOCALAPPDATA%\deepcool-lm\tray.log`.
 
 ## Development
 
-### Project Structure
-```
-coolmaster-driver/
-├── deepcool-lm              # Main CLI tool (standalone executable)
-├── deepcool-lm.service      # Systemd service file
-├── install.sh               # Installation script
-├── uninstall.sh             # Uninstallation script
-├── PKGBUILD                 # Arch Linux package build
-├── deepcool-lm-driver.install # AUR install hooks
-└── README.md                # This file
+```powershell
+cargo build --release     # the app
+cargo test                # unit tests
 ```
 
-### Building Custom Layouts
+The code uses only the Rust standard library. Windows APIs are declared in `src/win/ffi.rs` and linked with `raw-dylib`, so no Windows SDK import libraries are needed.
 
-The `render_monitor_display()` function in `deepcool-lm` can be customized to create different layouts. Key functions:
+| File | What it does |
+|---|---|
+| `src/main.rs` | command line and startup |
+| `src/engine.rs` | the display loop: sensors, drawing, sending, reconnecting |
+| `src/render.rs` | widget drawing |
+| `src/media.rs` | images and GIFs |
+| `src/http.rs`, `src/dashboard.html` | the dashboard and its local API |
+| `src/ipc.rs` | the command-line link to the running app |
+| `src/sensors.rs` | LibreHardwareMonitor, CPU, RAM, disk, network, NVIDIA |
+| `src/win/` | WinUSB, GDI+, tray icon, system info |
 
-- `draw_rounded_rect()` - Draw rounded rectangles
-- `get_temp_color()` - Get color based on temperature
-- `rgb_to_framebuffer()` - Convert PIL image to RGB565
+The `src/platform/unix.rs` stand-ins exist only for development and tests on other systems. They include a fake cooler: set `DEEPCOOL_LM_FAKE_DEVICE=frame.bin`, and `RUSTFLAGS="--cfg wincheck" cargo check` type-checks the Windows code there.
 
-Example of adding a custom element:
-```python
-# In render_monitor_display()
-draw.text((160, 120), "Custom Text", fill=(255, 255, 255), font=fonts['small'])
-```
+### Protocol
+
+- USB `3633:0026`, bulk endpoint `0x01` OUT (`0x81` IN for replies)
+- Packets: `0xAA`, payload length (LE16), payload, CRC-16/XMODEM of the payload (LE16)
+- Frame: header packet `aa 08 00 00 01 00 58 02 00 2c 01 bc 11`, then 153,600 bytes of 320×240 RGB565 little-endian
+- Init `09`, brightness `06 03 <level> 00`, Zen toggle `03 00 00 00`
 
 ## Credits
 
-This driver was developed through reverse engineering the USB protocol used by the official Windows software.
+A big thank you to **[daedlock](https://github.com/daedlock)**, author of the original [deepcool-lm](https://github.com/daedlock/deepcool-lm) Linux driver this project is forked from. They reverse-engineered DeepCool's USB protocol: the frame format, the packet checksums and the brightness and Zen commands. None of this would exist without that work. 🙏
+
+This fork is a Windows-only rewrite in Rust. If you're on Linux, use the [original project](https://github.com/daedlock/deepcool-lm).
 
 ## License
 
-MIT License - Feel free to use and modify
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
-
-## Changelog
-
-### v1.0.0
-- Initial release
-- System monitoring with CPU/GPU temperature
-- Custom image display with persistent state
-- Solid color display
-- Brightness control
-- IPC communication for conflict-free CLI usage
-- Systemd service integration
-- Polished UI with rounded borders and progress bars
+MIT

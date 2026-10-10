@@ -1,20 +1,6 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+# Build output
+/target/
 
-# Virtual environments
-.venv
-
-# Makepkg build artifacts
-pkg/
-src/
-*.pkg.tar.zst
-*.pkg.tar.xz
-
-# Development/local files
-test_aur_package.sh
-AUR_PUBLISHING_GUIDE.md
+# Editors
+.vscode/
+.idea/
