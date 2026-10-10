@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepCool LM</title>
+<style>
+  :root {
+    --frost: #EEF1F6;
+    --panel: #FFFFFF;
+    --line: #DCE1EA;
+    --line-soft: #E8ECF2;
+    --ink: #1F2430;
+    --slate: #667085;
+    --faint: #98A2B3;
+    --cyan: #22A7CF;
+    --cyan-ink: #0E7FA3;
+    --cyan-wash: #E3F4FA;
+    --violet: #7B6CF6;
+    --danger: #D14343;
+    --ok: #1F9D61;
+    --display: "Bahnschrift", "DIN Alternate", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    --body: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--frost); color: var(--ink); font: 14px/1.45 var(--body);
+    display: grid; grid-template-rows: 56px 1fr; overflow: hidden;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+  /* Header */
+  header {
+    display: flex; align-items: center; gap: 16px; padding: 0 20px;
+    background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  .brand { font: 600 19px/1 var(--display); letter-spacing: .01em; display: flex; align-items: center; gap: 10px; }
+  .brand svg { width: 26px; height: 26px; }
+  .status { display: flex; align-items: center; gap: 8px; color: var(--slate); font-size: 13px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .dot.on { background: var(--ok); box-shadow: 0 0 0 3px #1F9D6122; }
+  .dot.off { background: var(--danger); }
+  .spacer { flex: 1; }
+  .dirty { color: var(--slate); font-size: 13px; }
+  .btn {
+    border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 7px 14px;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .btn:hover { border-color: #C5CCD8; background: #F7F9FC; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 600; }
+  .btn.primary:hover:not(:disabled) { background: #2D3444; }
+  .btn.small { padding: 4px 10px; font-size: 13px; border-radius: 7px; }
+  .btn.icon { padding: 5px 8px; }
+  .btn.danger:hover { color: var(--danger); border-color: #EBC0C0; background: #FDF5F5; }
+
+  main { display: grid; grid-template-columns: 88px 1fr 340px; min-height: 0; }
+
+  /* Rail */
+  nav { background: var(--panel); border-right: 1px solid var(--line); padding: 14px 10px; display: flex; flex-direction: column; gap: 6px; }
+  nav button {
+    border: 0; background: none; border-radius: 10px; padding: 10px 4px 8px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--slate); font-size: 12.5px;
+  }
+  nav button svg { width: 22px; height: 22px; }
+  nav button:hover { background: var(--frost); color: var(--ink); }
+  nav button[aria-current="page"] { background: var(--cyan-wash); color: var(--cyan-ink); font-weight: 600; }
+
+  /* Stage */
+  .stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 20px; min-height: 58px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .toolbar .sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+  .toolbar .hint { color: var(--slate); font-size: 13px; }
+  .canvas-area { flex: 1; display: grid; place-items: center; min-height: 0; padding: 20px; overflow: auto; }
+  .canvas-area > div { display: flex; flex-direction: column; align-items: center; }
+
+  .cap {
+    position: relative; background: linear-gradient(160deg, #FFFFFF 0%, #F3F5F9 100%);
+    border-radius: 44px; padding: 34px;
+    box-shadow: 0 1px 0 #fff inset, 0 0 0 1px #E1E6EE, 0 18px 40px -18px #4A5A7A55,
+                -10px 0 34px -22px var(--cyan), 10px 0 34px -22px var(--violet);
+  }
+  .screen {
+    position: relative; background: #000; border-radius: 6px; padding: 10px;
+    box-shadow: 0 0 0 1px #10131A, 0 2px 0 6px #F0F2F6;
+  }
+  .screen img { display: block; image-rendering: pixelated; user-select: none; -webkit-user-drag: none; }
+  .overlay { position: absolute; left: 10px; top: 10px; }
+  .caption { text-align: center; color: var(--slate); font-size: 13px; margin-top: 14px; max-width: 520px; }
+
+  .box { position: absolute; cursor: move; border-radius: 3px; touch-action: none; }
+  .box:hover { outline: 1px dashed #FFFFFF99; }
+  .box.sel { outline: 2px solid var(--violet); box-shadow: 0 0 0 4px #7B6CF633; }
+  .box .tag {
+    display: none; position: absolute; bottom: 100%; left: -2px; margin-bottom: 6px;
+    background: var(--violet); color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 6px; white-space: nowrap;
+    pointer-events: none;
+  }
+  .box.sel .tag { display: block; }
+  .handle { display: none; position: absolute; width: 10px; height: 10px; background: #fff; border: 2px solid var(--violet); border-radius: 3px; }
+  .box.sel .handle { display: block; }
+  .h-nw { left: -6px; top: -6px; cursor: nwse-resize; } .h-ne { right: -6px; top: -6px; cursor: nesw-resize; }
+  .h-sw { left: -6px; bottom: -6px; cursor: nesw-resize; } .h-se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+
+  /* Inspector */
+  aside { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 20px 20px 40px; }
+  aside h2 { font: 600 18px/1.2 var(--display); margin: 0 0 4px; }
+  aside h3 { font: 600 14.5px/1.2 var(--display); margin: 22px 0 10px; color: var(--ink); }
+  aside .lede { color: var(--slate); margin: 0 0 14px; font-size: 13px; }
+  .field { display: grid; gap: 5px; margin-bottom: 12px; }
+  .field > label, .field > .label { color: var(--slate); font-size: 12.5px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  input[type=text], input[type=number], select {
+    width: 100%; border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; background: #fff; min-width: 0;
+  }
+  input[type=number] { font-variant-numeric: tabular-nums; }
+  input:focus, select:focus { border-color: var(--cyan); outline: none; box-shadow: 0 0 0 3px #22A7CF26; }
+  input[type=color] { width: 38px; height: 32px; border: 1px solid var(--line); border-radius: 7px; padding: 2px; background: #fff; cursor: pointer; }
+  input[type=color]:disabled { opacity: .35; cursor: default; }
+  .check { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13.5px; }
+  .check input { width: 16px; height: 16px; accent-color: var(--cyan); }
+  .colorline { display: flex; align-items: center; gap: 10px; }
+  .seg { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--frost); border-radius: 9px; padding: 3px; width: 100%; }
+  .seg button { border: 0; background: none; padding: 7px 8px; border-radius: 7px; cursor: pointer; color: var(--slate); font-size: 13.5px; }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px #1F243022, 0 0 0 1px var(--line); }
+  .seg button small { display: block; font-weight: 400; color: var(--faint); font-size: 11.5px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1px solid var(--line); background: var(--frost); border-radius: 999px; padding: 2px 9px; font-size: 12px; cursor: pointer; }
+  .chip:hover { border-color: var(--cyan); color: var(--cyan-ink); }
+  .note { color: var(--slate); font-size: 12.5px; margin: 6px 0 0; }
+  .callout { background: var(--cyan-wash); border-radius: 9px; padding: 10px 12px; font-size: 13px; color: #0B5F7A; margin: 10px 0; }
+  .callout.warn { background: #FFF6E5; color: #8A5A00; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .readout { font: 600 26px/1 var(--display); font-variant-numeric: tabular-nums; }
+  .range { width: 100%; accent-color: var(--cyan); }
+  .readout.small { font-size: 17px; min-width: 46px; text-align: right; }
+  .brightrow { display: flex; align-items: center; gap: 10px; color: var(--slate); }
+  .brightrow svg { width: 18px; height: 18px; flex: none; }
+  .bgpick { display: flex; gap: 8px; }
+  .rot { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .rot button {
+    border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 9px 4px 7px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--slate); font-size: 13px;
+  }
+  .rot button:hover { border-color: #C5CCD8; }
+  .rot button[aria-pressed="true"] { border-color: var(--cyan); background: var(--cyan-wash); color: var(--cyan-ink); font-weight: 600; }
+  .rot button small { font-size: 11px; color: var(--faint); font-weight: 400; margin-top: -4px; }
+  .rot .glyph { width: 26px; height: 20px; border: 2px solid currentColor; border-radius: 4px; position: relative; display: block; }
+  .rot .glyph i { position: absolute; left: 3px; right: 3px; top: 2px; height: 4px; border-radius: 2px; background: var(--violet); }
+  @media (prefers-reduced-motion: no-preference) { .rot .glyph { transition: transform .2s; } }
+  kbd { font: 12px var(--body); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; background: var(--frost); }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13px; color: var(--slate); }
+
+  .layers { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .layers li { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-top: 1px solid var(--line-soft); cursor: pointer; font-size: 13px; }
+  .layers li:first-child { border-top: 0; }
+  .layers li:hover { background: #F7F9FC; }
+  .layers .kind { font-weight: 600; min-width: 46px; }
+  .layers .what { color: var(--slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Media */
+  .drop { border: 1.5px dashed #C3CBD8; border-radius: 12px; padding: 18px; text-align: center; color: var(--slate); background: #FAFBFD; }
+  .drop.over { border-color: var(--cyan); background: var(--cyan-wash); color: var(--cyan-ink); }
+  .media { display: grid; gap: 8px; margin-top: 12px; }
+  .mitem { display: grid; grid-template-columns: 72px 1fr; gap: 4px 10px; align-items: center; padding: 6px; border: 1px solid var(--line); border-radius: 10px; }
+  .mitem img { grid-row: span 2; }
+  .mitem.off { opacity: .6; }
+  .mitem img { width: 72px; height: 54px; object-fit: cover; border-radius: 6px; background: #000; display: block; }
+  .mitem .name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mitem .meta { font-size: 12px; color: var(--slate); }
+  .mitem .ctrls { display: flex; align-items: center; gap: 4px; }
+  .mitem .ctrls .check { margin-right: auto; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 20px); opacity: 0;
+    background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13.5px;
+    transition: opacity .18s, transform .18s; pointer-events: none; max-width: 560px; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.err { background: var(--danger); }
+  [hidden] { display: none !important; }
+  body.gone main, body.gone header { filter: grayscale(1) opacity(.35); pointer-events: none; }
+  .gone-card {
+    position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%); width: min(440px, calc(100% - 32px));
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px;
+    box-shadow: 0 20px 50px -20px #1F243066;
+  }
+  .gone-card h2 { font: 600 19px/1.2 var(--display); margin: 0 0 8px; }
+  .gone-card p { margin: 0; color: var(--slate); }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 26 26" aria-hidden="true"><rect x="1.5" y="1.5" width="23" height="23" rx="7" fill="#fff" stroke="#22A7CF" stroke-width="2"/><rect x="6" y="7" width="14" height="4" rx="2" fill="#22A7CF"/><rect x="6" y="13" width="10" height="3" rx="1.5" fill="#7B6CF6"/><rect x="6" y="18" width="12" height="2.4" rx="1.2" fill="#98A2B3"/></svg>
+    DeepCool LM
+  </div>
+  <div class="status" id="status"><span class="dot"></span><span>Looking for the cooler</span></div>
+  <div class="spacer"></div>
+  <span class="dirty" id="dirty" hidden>Unsaved changes</span>
+  <button class="btn" id="revert" disabled>Discard</button>
+  <button class="btn primary" id="save" disabled>Save to cooler</button>
+</header>
+
+<main>
+  <nav aria-label="Sections">
+    <button data-section="display" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9h6M9 12h6M9 15h3"/></svg>
+      Display
+    </button>
+    <button data-section="layout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="4" rx="1.5"/><rect x="13.5" y="10.5" width="7" height="10" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/></svg>
+      Layout
+    </button>
+    <button data-section="media">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M20 16l-5-5-8 8"/></svg>
+      Images
+    </button>
+  </nav>
+
+  <section class="stage">
+    <div class="toolbar" id="toolbar"></div>
+    <div class="canvas-area" id="canvasArea">
+      <div>
+        <div class="cap">
+          <div class="screen" id="screen">
+            <img id="preview" alt="Preview of the cooler screen">
+            <div class="overlay" id="overlay"></div>
+          </div>
+        </div>
+        <div class="caption" id="caption"></div>
+      </div>
+    </div>
+  </section>
+
+  <aside id="inspector" aria-live="polite"></aside>
+</main>
+
+<input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.gif,.bmp" multiple hidden>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+"use strict";
+const TOKEN = "__TOKEN__";
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
+
+const S = {
+  cfg: null, savedJSON: "", defaults: {}, wdefaults: {}, sizes: {}, sensors: [], sensorMap: {},
+  media: [], section: "display", sel: -1, undo: [], redo: [], snap: true, scale: 2, service: null,
+};
+const KIND_NAMES = { text: "Text", bar: "Bar", gauge: "Gauge", graph: "Graph", panel: "Panel" };
+
+// ---------------------------------------------------------------- API
+async function api(path, body) {
+  const opts = { headers: { "X-Token": TOKEN } };
+  if (body !== undefined) { opts.method = "POST"; opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(`Request failed (${r.status})`);
+  return (r.headers.get("Content-Type") || "").includes("json") ? r.json() : r.blob();
+}
+
+function toast(msg, isErr = false) {
+  const t = $("#toast");
+  t.textContent = msg; t.classList.toggle("err", isErr); t.classList.add("show");
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove("show"), isErr ? 6000 : 2600);
+}
+
+// ---------------------------------------------------------------- State helpers
+const rotation = () => S.cfg.rotation || 0;
+const ROTATION_NAMES = { 0: "Landscape", 90: "Portrait", 180: "Landscape, upside down", 270: "Portrait, upside down" };
+// The upright picture's shape: a quarter turn makes it tall
+const orient = () => rotation() % 180 === 90 ? "portrait" : "landscape";
+const size = () => S.sizes[orient()] || [320, 240];
+const layout = () => S.cfg.layouts[orient()];
+const widgets = () => layout().widgets;
+const selected = () => widgets()[S.sel];
+const isDirty = () => JSON.stringify(S.cfg) !== S.savedJSON;
+
+function snapshotUndo() {
+  S.undo.push(JSON.stringify(S.cfg)); if (S.undo.length > 100) S.undo.shift();
+  S.redo = [];
+}
+function change(fn, { undo = true, inspector = true } = {}) {
+  if (undo) snapshotUndo();
+  fn();
+  afterChange(inspector);
+}
+function afterChange(inspector = true) {
+  updateDirty(); drawOverlay(); if (inspector) renderInspector(); schedulePreview();
+}
+function undo() { if (!S.undo.length) return; S.redo.push(JSON.stringify(S.cfg)); S.cfg = JSON.parse(S.undo.pop()); S.sel = Math.min(S.sel, widgets().length - 1); afterChange(); renderToolbar(); }
+function redo() { if (!S.redo.length) return; S.undo.push(JSON.stringify(S.cfg)); S.cfg = JSON.parse(S.redo.pop()); S.sel = Math.min(S.sel, widgets().length - 1); afterChange(); renderToolbar(); }
+
+function updateDirty() {
+  const d = isDirty();
+  $("#dirty").hidden = !d; $("#save").disabled = !d; $("#revert").disabled = !d;
+}
+
+function sensorLabel(id) {
+  if (!id) return "No sensor";
+  const s = S.sensorMap[id];
+  return s ? s.name : id;
+}
+function fmtValue(s) {
+  if (!s || s.value === null || s.value === undefined) return "no reading";
+  const v = Math.abs(s.value) >= 100 ? Math.round(s.value) : Math.round(s.value * 10) / 10;
+  return `${v}${s.unit ? (s.unit === "%" || s.unit === "°C" ? "" : " ") + s.unit : ""}`;
+}
+
+// ---------------------------------------------------------------- Preview
+let previewTimer = null, previewBusy = false, previewQueued = false, lastURL = null;
+function schedulePreview(delay = 120) { clearTimeout(previewTimer); previewTimer = setTimeout(refreshPreview, delay); }
+async function refreshPreview() {
+  if (previewBusy) { previewQueued = true; return; }
+  previewBusy = true;
+  try {
+    const cfg = clone(S.cfg);
+    if (S.section === "layout") cfg.mode = "monitor";
+    if (S.section === "media") cfg.mode = "media";
+    const blob = await api("/api/preview", { config: cfg, test_pattern: S.section === "display" && Date.now() < (S.testUntil || 0) });
+    const url = URL.createObjectURL(blob);
+    $("#preview").src = url;
+    if (lastURL) URL.revokeObjectURL(lastURL);
+    lastURL = url;
+  } catch (e) { /* tray restarting; next tick retries */ }
+  previewBusy = false;
+  if (previewQueued) { previewQueued = false; schedulePreview(0); }
+}
+
+function sizeCanvas() {
+  const [w, h] = size();
+  const area = $("#canvasArea");
+  const availW = area.clientWidth - 40 - 2 * 34 - 20, availH = area.clientHeight - 40 - 2 * 34 - 20 - 34;
+  S.scale = Math.max(1, Math.min(2.5, Math.floor(Math.min(availW / w, availH / h) * 4) / 4));
+  const img = $("#preview");
+  img.style.width = `${w * S.scale}px`; img.style.height = `${h * S.scale}px`;
+  const ov = $("#overlay");
+  ov.style.width = img.style.width; ov.style.height = img.style.height;
+  const modeText = S.section === "display" ? (S.cfg.mode === "media" ? "showing images" : "monitor") : (S.section === "media" ? "images" : "layout");
+  const testing = S.section === "display" && Date.now() < (S.testUntil || 0) ? ", showing the test pattern" : "";
+  $("#caption").textContent = `Live preview, ${w} × ${h} ${ROTATION_NAMES[rotation()].toLowerCase()}, as you see it on the cooler (${modeText}${testing})`;
+  drawOverlay();
+}
+
+// ---------------------------------------------------------------- Overlay (drag & resize)
+function drawOverlay() {
+  const ov = $("#overlay");
+  ov.innerHTML = "";
+  ov.style.pointerEvents = S.section === "layout" ? "auto" : "none";
+  if (S.section !== "layout") return;
+  widgets().forEach((w, i) => {
+    const b = document.createElement("div");
+    b.className = "box" + (i === S.sel ? " sel" : "");
+    Object.assign(b.style, { left: `${w.x * S.scale}px`, top: `${w.y * S.scale}px`, width: `${w.w * S.scale}px`, height: `${w.h * S.scale}px` });
+    b.dataset.i = i;
+    b.innerHTML = `<span class="tag">${esc(KIND_NAMES[w.type] || w.type)}${w.sensor ? ": " + esc(sensorLabel(w.sensor)) : ""}</span>` +
+      ["nw", "ne", "sw", "se"].map(c => `<span class="handle h-${c}" data-h="${c}"></span>`).join("");
+    ov.appendChild(b);
+  });
+}
+
+let drag = null;
+$("#overlay").addEventListener("pointerdown", e => {
+  const box = e.target.closest(".box");
+  if (!box) { if (S.sel !== -1) { S.sel = -1; drawOverlay(); renderInspector(); } return; }
+  e.preventDefault();
+  const i = +box.dataset.i;
+  if (S.sel !== i) { S.sel = i; drawOverlay(); renderInspector(); }
+  const w = widgets()[i];
+  drag = { i, mode: e.target.dataset.h || "move", mx: e.clientX, my: e.clientY, start: { ...w }, before: JSON.stringify(S.cfg), moved: false };
+  try { $("#overlay").setPointerCapture(e.pointerId); } catch (_) { /* element redrawn */ }
+});
+window.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const [W, H] = size();
+  const dx = (e.clientX - drag.mx) / S.scale, dy = (e.clientY - drag.my) / S.scale;
+  if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 1) return;
+  drag.moved = true;
+  const st = drag.start, w = widgets()[drag.i];
+  const snap = v => S.snap ? Math.round(v / 4) * 4 : Math.round(v);
+  if (drag.mode === "move") {
+    w.x = Math.max(0, Math.min(W - w.w, snap(st.x + dx)));
+    w.y = Math.max(0, Math.min(H - w.h, snap(st.y + dy)));
+  } else {
+    let x0 = st.x, y0 = st.y, x1 = st.x + st.w, y1 = st.y + st.h;
+    if (drag.mode.includes("w")) x0 = Math.max(0, Math.min(x1 - 6, snap(st.x + dx)));
+    if (drag.mode.includes("e")) x1 = Math.min(W, Math.max(x0 + 6, snap(st.x + st.w + dx)));
+    if (drag.mode.includes("n")) y0 = Math.max(0, Math.min(y1 - 6, snap(st.y + dy)));
+    if (drag.mode.includes("s")) y1 = Math.min(H, Math.max(y0 + 6, snap(st.y + st.h + dy)));
+    Object.assign(w, { x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+  }
+  const b = $(`.box[data-i="${drag.i}"]`);
+  if (b) Object.assign(b.style, { left: `${w.x * S.scale}px`, top: `${w.y * S.scale}px`, width: `${w.w * S.scale}px`, height: `${w.h * S.scale}px` });
+  schedulePreview(40);
+});
+window.addEventListener("pointerup", () => {
+  if (!drag) return;
+  if (drag.moved) { S.undo.push(drag.before); S.redo = []; updateDirty(); renderInspector(); }
+  drag = null;
+});
+
+window.addEventListener("keydown", e => {
+  const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName);
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); if (isDirty()) save(); return; }
+  if (typing || S.section !== "layout") return;
+  if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); return; }
+  const w = selected();
+  if (!w) return;
+  if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); removeSelected(); }
+  else if (mod && e.key.toLowerCase() === "d") { e.preventDefault(); duplicateSelected(); }
+  else if (e.key === "Escape") { S.sel = -1; drawOverlay(); renderInspector(); }
+  else if (e.key.startsWith("Arrow")) {
+    e.preventDefault();
+    const step = e.shiftKey ? 10 : 1, [W, H] = size();
+    change(() => {
+      if (e.key === "ArrowLeft") w.x = Math.max(0, w.x - step);
+      if (e.key === "ArrowRight") w.x = Math.min(W - w.w, w.x + step);
+      if (e.key === "ArrowUp") w.y = Math.max(0, w.y - step);
+      if (e.key === "ArrowDown") w.y = Math.min(H - w.h, w.y + step);
+    });
+  }
+});
+
+// ---------------------------------------------------------------- Widget operations
+function suggestRange(w, s) {
+  if (!s) return;
+  if (s.unit === "%" || s.unit === "°C") { w.min = 0; w.max = 100; return; }
+  const v = Math.abs(Number(s.value) || 0);
+  if (v > 0) { const mag = 10 ** Math.floor(Math.log10(v * 1.25)); w.min = 0; w.max = Math.ceil(v * 1.25 / mag) * mag; }
+}
+function suffixFor(s) { return !s ? "" : s.unit === "°C" ? "°" : s.unit === "%" ? "%" : ""; }
+
+function addWidget(type) {
+  const [W, H] = size();
+  const w = { type, ...clone(S.wdefaults[type] || {}) };
+  w.w = Math.min(w.w, W - 8); w.h = Math.min(w.h, H - 8);
+  w.x = Math.round((W - w.w) / 2 / 4) * 4; w.y = Math.round((H - w.h) / 2 / 4) * 4;
+  w.sensor = type === "panel" ? "" : (type === "text" ? "cpu.temp" : "cpu.usage");
+  const s = S.sensorMap[w.sensor];
+  if (type === "text") { w.text = "{value}" + suffixFor(s); w.color = "auto"; }
+  if (type === "gauge") w.suffix = suffixFor(s);
+  if (type !== "text" && type !== "panel") suggestRange(w, s);
+  change(() => { widgets().push(w); S.sel = widgets().length - 1; });
+}
+function removeSelected() { if (S.sel < 0) return; change(() => { widgets().splice(S.sel, 1); S.sel = -1; }); }
+function duplicateSelected() {
+  const w = selected(); if (!w) return;
+  const [W, H] = size();
+  const c = clone(w); c.x = Math.min(W - c.w, c.x + 8); c.y = Math.min(H - c.h, c.y + 8);
+  change(() => { widgets().splice(S.sel + 1, 0, c); S.sel += 1; });
+}
+function moveLayer(dir) {
+  const ws = widgets(), i = S.sel, j = dir === "front" ? ws.length - 1 : 0;
+  if (i < 0 || i === j) return;
+  change(() => { const [w] = ws.splice(i, 1); dir === "front" ? ws.push(w) : ws.unshift(w); S.sel = j; });
+}
+function setProp(key, value, { rerender = false } = {}) {
+  const w = selected(); if (!w) return;
+  change(() => { w[key] = value; }, { inspector: rerender });
+}
+
+// ---------------------------------------------------------------- Toolbar
+function renderToolbar() {
+  const tb = $("#toolbar");
+  if (S.section === "layout") {
+    tb.innerHTML = `
+      <span class="hint">Add</span>
+      ${Object.entries(KIND_NAMES).map(([k, n]) => `<button class="btn small" data-add="${k}">${n}</button>`).join("")}
+      <span class="sep"></span>
+      <label class="check"><input type="checkbox" id="snap" ${S.snap ? "checked" : ""}> Snap to grid</label>
+      <span class="sep"></span>
+      <button class="btn small" id="undoBtn" ${S.undo.length ? "" : "disabled"} title="Ctrl+Z">Undo</button>
+      <button class="btn small" id="redoBtn" ${S.redo.length ? "" : "disabled"} title="Ctrl+Y">Redo</button>
+      <span class="spacer"></span>
+      <button class="btn small danger" id="resetLayout">Reset layout</button>`;
+    tb.querySelectorAll("[data-add]").forEach(b => b.onclick = () => { addWidget(b.dataset.add); renderToolbar(); });
+    $("#snap").onchange = e => S.snap = e.target.checked;
+    $("#undoBtn").onclick = undo; $("#redoBtn").onclick = redo;
+    $("#resetLayout").onclick = () => {
+      if (!confirm(`Replace the ${orient()} layout with the default one? You can undo this.`)) return;
+      change(() => { S.cfg.layouts[orient()] = clone(S.defaults[orient()]); S.sel = -1; });
+      renderToolbar();
+    };
+  } else if (S.section === "media") {
+    tb.innerHTML = `<button class="btn small" id="addImages">Add images</button>
+      <span class="hint">PNG, JPG, GIF (animated) or BMP. Pictures are cropped to fill the screen unless you change it on the right.</span>`;
+    $("#addImages").onclick = () => { S.uploadTarget = "slideshow"; $("#fileInput").click(); };
+  } else {
+    tb.innerHTML = `<span class="hint">Choose what the cooler shows, then select Save to cooler.</span>`;
+  }
+}
+
+// ---------------------------------------------------------------- Inspector builders
+function seg(options, value, onPick) {
+  const el = document.createElement("div");
+  el.className = "seg"; el.setAttribute("role", "group");
+  options.forEach(([v, label, sub]) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.setAttribute("aria-pressed", String(v === value));
+    b.innerHTML = esc(label) + (sub ? `<small>${esc(sub)}</small>` : "");
+    b.onclick = () => onPick(v);
+    el.appendChild(b);
+  });
+  return el;
+}
+function field(label, control, note) {
+  const f = document.createElement("div");
+  f.className = "field";
+  const l = document.createElement("div"); l.className = "label"; l.textContent = label;
+  f.appendChild(l); f.appendChild(control);
+  if (note) { const n = document.createElement("p"); n.className = "note"; n.textContent = note; f.appendChild(n); }
+  return f;
+}
+function numInput(value, onChange, { min, max, step = 1 } = {}) {
+  const i = document.createElement("input");
+  i.type = "number"; i.value = value; i.step = step;
+  if (min !== undefined) i.min = min; if (max !== undefined) i.max = max;
+  i.onchange = () => { const v = parseFloat(i.value); if (!isNaN(v)) onChange(v); };
+  return i;
+}
+function textInput(value, onChange) {
+  const i = document.createElement("input");
+  i.type = "text"; i.value = value ?? "";
+  i.oninput = () => onChange(i.value);
+  return i;
+}
+function checkbox(label, value, onChange) {
+  const l = document.createElement("label");
+  l.className = "check";
+  l.innerHTML = `<input type="checkbox" ${value ? "checked" : ""}> ${esc(label)}`;
+  l.firstChild.onchange = e => onChange(e.target.checked);
+  return l;
+}
+function colorControl(value, onChange, { allowAuto = false, allowNone = false } = {}) {
+  const wrap = document.createElement("div");
+  wrap.className = "colorline";
+  const isAuto = value === "auto", isNone = !value;
+  const c = document.createElement("input");
+  c.type = "color"; c.value = /^#[0-9a-f]{6}$/i.test(value || "") ? value : "#e6e6f0";
+  c.disabled = (allowAuto && isAuto) || (allowNone && isNone);
+  c.oninput = () => onChange(c.value, false);
+  c.onchange = () => onChange(c.value, true);
+  wrap.appendChild(c);
+  if (allowAuto) wrap.appendChild(checkbox("Color by value", isAuto, on => onChange(on ? "auto" : c.value, true)));
+  if (allowNone) wrap.appendChild(checkbox("None", isNone, on => onChange(on ? "" : c.value, true)));
+  return wrap;
+}
+function fontSelect(value, onChange) {
+  const sel = document.createElement("select");
+  const fonts = S.fonts || [];
+  let html = `<option value="" ${!value ? "selected" : ""}>Default (Segoe UI)</option>`;
+  html += fonts.map(f => `<option value="${esc(f)}" style="font-family:'${esc(f)}'" ${f === value ? "selected" : ""}>${esc(f)}</option>`).join("");
+  if (value && !fonts.includes(value)) html += `<option value="${esc(value)}" selected>${esc(value)} (not installed)</option>`;
+  sel.innerHTML = html;
+  sel.style.fontFamily = value ? `'${value}', var(--body, sans-serif)` : "";
+  sel.onchange = () => onChange(sel.value);
+  return sel;
+}
+function styleChecks(w) {
+  const row = document.createElement("div"); row.className = "row";
+  row.append(checkbox("Bold", w.bold, v => setProp("bold", v)), checkbox("Italic", w.italic, v => setProp("italic", v)));
+  return row;
+}
+function sensorSelect(value, onChange) {
+  const sel = document.createElement("select");
+  sel.id = "sensorSelect";
+  fillSensorSelect(sel, value);
+  sel.onchange = () => onChange(sel.value);
+  return sel;
+}
+function fillSensorSelect(sel, value) {
+  const groups = {};
+  S.sensors.forEach(s => (groups[s.group || "Other"] ||= []).push(s));
+  let html = `<option value="">No sensor</option>`;
+  for (const [g, list] of Object.entries(groups)) {
+    html += `<optgroup label="${esc(g)}">` + list.map(s =>
+      `<option value="${esc(s.id)}" ${s.id === value ? "selected" : ""}>${esc(s.name)} (${esc(fmtValue(s))})</option>`).join("") + `</optgroup>`;
+  }
+  if (value && !S.sensorMap[value]) html += `<option value="${esc(value)}" selected>${esc(value)} (not available now)</option>`;
+  sel.innerHTML = html;
+}
+
+// ---------------------------------------------------------------- Inspector sections
+function renderInspector() {
+  const el = $("#inspector");
+  el.innerHTML = "";
+  if (S.section === "display") return inspectDisplay(el);
+  if (S.section === "media") return inspectMedia(el);
+  return selected() ? inspectWidget(el, selected()) : inspectLayout(el);
+}
+
+function rotationControl() {
+  const el = document.createElement("div");
+  el.className = "rot";
+  [0, 90, 180, 270].forEach(deg => {
+    const b = document.createElement("button");
+    b.type = "button"; b.setAttribute("aria-pressed", String(rotation() === deg));
+    b.setAttribute("aria-label", `Rotate ${deg} degrees`);
+    b.title = `${ROTATION_NAMES[deg]} (${deg}°)`;
+    b.innerHTML = `<span class="glyph" style="transform: rotate(${deg}deg)"><i></i></span><span>${["Landscape", "Portrait", "Landscape", "Portrait"][deg / 90]}</span><small>${deg === 0 ? "Normal" : deg === 90 ? "Turned right" : deg === 180 ? "Upside down" : "Turned left"}</small>`;
+    b.onclick = () => { change(() => { S.cfg.rotation = deg; S.sel = -1; }); sizeCanvas(); };
+    el.appendChild(b);
+  });
+  return el;
+}
+
+let brightTimer = null, brightWarned = false;
+function brightnessControl() {
+  const wrap = document.createElement("div");
+  const known = S.cfg.brightness !== null && S.cfg.brightness !== undefined;
+  const value = known ? S.cfg.brightness : 100;
+  wrap.innerHTML = `<div class="brightrow"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.2" fill="currentColor"/></svg>
+      <input type="range" class="range" min="5" max="100" step="1" value="${value}" aria-label="Brightness">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M10 1.5v2M10 16.5v2M1.5 10h2M16.5 10h2M4 4l1.4 1.4M14.6 14.6L16 16M4 16l1.4-1.4M14.6 5.4L16 4"/></g></svg>
+      <span class="readout small" id="brightVal">${value}%</span></div>
+    <p class="note">${known ? "Changes the cooler right away. Save to keep it after a restart." : "The cooler's current level isn't known yet. Move the slider to set it, then save to keep it."}</p>`;
+  const r = wrap.querySelector("input");
+  const send = async level => {
+    try {
+      const res = await api("/api/brightness", { level });
+      if (!res.ok && !brightWarned) { brightWarned = true; toast(`${res.error} It will apply when the cooler connects, after you save.`, true); }
+    } catch (e) { /* tray restarting */ }
+  };
+  r.oninput = () => {
+    $("#brightVal").textContent = `${r.value}%`;
+    clearTimeout(brightTimer); brightTimer = setTimeout(() => send(+r.value), 120);   // live, throttled
+  };
+  r.onchange = () => {
+    change(() => S.cfg.brightness = +r.value, { inspector: false });
+    wrap.querySelector(".note").textContent = "Changes the cooler right away. Save to keep it after a restart.";
+  };
+  return wrap;
+}
+
+function inspectDisplay(el) {
+  el.insertAdjacentHTML("beforeend", `<h2>Display</h2><p class="lede">What the cooler screen shows and how it's mounted.</p>`);
+  el.appendChild(field("Mode", seg([["monitor", "Monitor", "Live sensors"], ["media", "Images", "Pictures and GIFs"]], S.cfg.mode,
+    v => { change(() => S.cfg.mode = v); sizeCanvas(); })));
+  el.appendChild(field("Screen orientation", rotationControl(),
+    "Match how the cooler is mounted. The picture turns clockwise in quarter turns, and the layout editor always shows it upright."));
+
+  const wrap = document.createElement("div");
+  const r = document.createElement("input");
+  r.type = "range"; r.className = "range"; r.min = 0.5; r.max = 5; r.step = 0.5; r.value = S.cfg.interval;
+  const out = document.createElement("div"); out.className = "note";
+  const label = v => `Updates every ${v} ${v == 1 ? "second" : "seconds"}`;
+  out.textContent = label(S.cfg.interval);
+  r.oninput = () => { out.textContent = label(r.value); };
+  r.onchange = () => change(() => S.cfg.interval = parseFloat(r.value), { inspector: false });
+  wrap.append(r, out);
+  el.appendChild(field("Monitor refresh", wrap));
+
+  el.insertAdjacentHTML("beforeend", `<h3>Brightness</h3>`);
+  el.appendChild(brightnessControl());
+
+  el.insertAdjacentHTML("beforeend", `<h3>Check the screen</h3>`);
+  const tp = document.createElement("button"); tp.className = "btn"; tp.textContent = "Show test pattern";
+  tp.onclick = async () => {
+    const r = await api("/api/test_pattern", { seconds: 15 });
+    if (!r.ok) return toast(r.error, true);
+    S.testUntil = Date.now() + 15000; sizeCanvas(); schedulePreview(0);
+    setTimeout(() => { sizeCanvas(); schedulePreview(0); }, 15100);
+    toast("Showing the test pattern on the cooler for 15 seconds.");
+  };
+  el.appendChild(tp);
+  el.insertAdjacentHTML("beforeend", `<p class="note">Shows color bars, a gray ramp and a TOP marker on the cooler for 15 seconds, with the same pattern in the preview, so you can compare colors and orientation.</p>`);
+  if (S.service === false) el.insertAdjacentHTML("beforeend",
+    `<div class="callout warn">The cooler isn't connected. Check that its USB cable is plugged into the motherboard and that DeepCool's own app is closed. Saved changes show up as soon as it connects.</div>`);
+}
+
+function inspectLayout(el) {
+  const ws = widgets();
+  el.insertAdjacentHTML("beforeend", `<h2>${orient() === "portrait" ? "Portrait" : "Landscape"} layout</h2>
+    <p class="lede">Drag widgets on the screen to move them, and pull a corner to resize. Select one to edit it.</p>`);
+  el.appendChild(field("Background color", colorControl(layout().background, (v, commit) => {
+    if (commit) change(() => layout().background = v, { inspector: false }); else { layout().background = v; schedulePreview(60); }
+  })));
+  el.appendChild(field("Background image", backgroundPicker(),
+    "Pictures and animated GIFs from your image library. GIFs play behind the widgets."));
+  if (layout().background_image) {
+    el.appendChild(field("Fit", seg([["cover", "Fill", "Crop edges"], ["contain", "Fit", "Bars"], ["stretch", "Stretch", "Distort"]],
+      layout().background_fit || "cover", v => change(() => layout().background_fit = v))));
+    const wrap = document.createElement("div");
+    const lvl = layout().background_brightness ?? 100;
+    wrap.innerHTML = `<div class="brightrow"><input type="range" class="range" min="10" max="100" step="5" value="${lvl}" aria-label="Image brightness"><span class="readout small">${lvl}%</span></div>`;
+    const rr = wrap.querySelector("input"), ro = wrap.querySelector(".readout");
+    rr.oninput = () => { ro.textContent = `${rr.value}%`; layout().background_brightness = +rr.value; schedulePreview(60); };
+    rr.onchange = () => { const v = +rr.value; layout().background_brightness = S.undoBase ?? v; change(() => layout().background_brightness = v, { inspector: false }); };
+    rr.onpointerdown = () => { S.undoBase = layout().background_brightness; };
+    el.appendChild(field("Image brightness", wrap, "Dim a busy picture so text on top stays readable."));
+  }
+  el.insertAdjacentHTML("beforeend", `<h3>Widgets, top to bottom</h3>`);
+  if (!ws.length) { el.insertAdjacentHTML("beforeend", `<p class="note">The screen is empty. Add a widget from the toolbar above the preview.</p>`); }
+  else {
+    const ul = document.createElement("ul"); ul.className = "layers";
+    [...ws.keys()].reverse().forEach(i => {
+      const w = ws[i];
+      const li = document.createElement("li");
+      const what = w.type === "text" ? (w.text || "") + (w.sensor && /\{(value|unit|name)\}/.test(w.text || "") ? ` (${sensorLabel(w.sensor)})` : "")
+        : w.type === "panel" ? "Background card" : sensorLabel(w.sensor);
+      li.innerHTML = `<span class="kind">${esc(KIND_NAMES[w.type])}</span><span class="what">${esc(what)}</span>`;
+      li.onclick = () => { S.sel = i; drawOverlay(); renderInspector(); };
+      ul.appendChild(li);
+    });
+    el.appendChild(ul);
+  }
+  el.insertAdjacentHTML("beforeend", `<h3>Shortcuts</h3><div class="keys">
+    <span><kbd>Arrows</kbd></span><span>Nudge 1 px (with Shift, 10 px)</span>
+    <span><kbd>Del</kbd></span><span>Delete the selected widget</span>
+    <span><kbd>Ctrl</kbd> <kbd>D</kbd></span><span>Duplicate</span>
+    <span><kbd>Ctrl</kbd> <kbd>Z</kbd></span><span>Undo</span>
+    <span><kbd>Ctrl</kbd> <kbd>S</kbd></span><span>Save to cooler</span></div>`);
+}
+
+function backgroundPicker() {
+  const wrap = document.createElement("div");
+  wrap.className = "bgpick";
+  const current = layout().background_image || "";
+  const sel = document.createElement("select");
+  sel.innerHTML = `<option value="">None</option>` + S.media.map(f =>
+    `<option value="${esc(f.name)}" ${f.name === current ? "selected" : ""}>${esc(f.name)}${f.animated ? " (animated)" : ""}</option>`).join("") +
+    (current && !S.media.some(f => f.name === current) ? `<option value="${esc(current)}" selected>${esc(current)} (missing)</option>` : "");
+  sel.onchange = () => change(() => layout().background_image = sel.value);
+  const up = document.createElement("button");
+  up.type = "button"; up.className = "btn small"; up.textContent = "Upload";
+  up.onclick = () => { S.uploadTarget = "background"; $("#fileInput").click(); };
+  wrap.append(sel, up);
+  return wrap;
+}
+
+function inspectWidget(el, w) {
+  const s = S.sensorMap[w.sensor];
+  el.insertAdjacentHTML("beforeend", `<h2>${esc(KIND_NAMES[w.type])}</h2>`);
+  const top = document.createElement("div"); top.className = "actions"; top.style.margin = "0 0 14px";
+  [["Duplicate", duplicateSelected], ["Bring to front", () => moveLayer("front")], ["Send to back", () => moveLayer("back")]].forEach(([t, fn]) => {
+    const b = document.createElement("button"); b.className = "btn small"; b.textContent = t; b.onclick = fn; top.appendChild(b);
+  });
+  const del = document.createElement("button"); del.className = "btn small danger"; del.textContent = "Delete"; del.onclick = removeSelected;
+  top.appendChild(del);
+  el.appendChild(top);
+
+  if (w.type !== "panel") {
+    el.appendChild(field("Sensor", sensorSelect(w.sensor, id => {
+      const ns = S.sensorMap[id];
+      change(() => {
+        const oldSuffix = suffixFor(S.sensorMap[w.sensor]);
+        if (w.type === "text" && (w.text === "{value}" + oldSuffix || w.text === "{value}" || !w.text)) w.text = "{value}" + suffixFor(ns);
+        if (w.type === "gauge" && (w.suffix === oldSuffix || !w.suffix)) w.suffix = suffixFor(ns);
+        if (w.type !== "text") suggestRange(w, ns);
+        w.sensor = id;
+      });
+    }), s ? `Current reading: ${fmtValue(s)}` : (w.sensor ? "This sensor isn't reporting right now." : "")));
+  }
+
+  if (w.type === "text") {
+    const t = textInput(w.text, v => { w.text = v; afterChange(false); });
+    t.onfocus = () => snapshotUndo();
+    el.appendChild(field("Text", t, "{value} is the sensor reading. Add any other sensor with its id, e.g. {cpu.clock|2} for two decimals."));
+    const chips = document.createElement("div"); chips.className = "chips";
+    ["{value}", "{unit}", "{name}", "{time}", "{date}", "{day}"].forEach(tok => {
+      const c = document.createElement("button"); c.className = "chip"; c.type = "button"; c.textContent = tok;
+      c.onclick = () => change(() => w.text = (w.text || "") + tok);
+      chips.appendChild(c);
+    });
+    el.appendChild(chips);
+    const row = document.createElement("div"); row.className = "row"; row.style.marginTop = "12px";
+    row.append(field("Size", numInput(w.size, v => setProp("size", Math.max(6, Math.min(120, v))), { min: 6, max: 120 })),
+               field("Decimals", numInput(w.decimals, v => setProp("decimals", Math.max(0, Math.min(4, v | 0))), { min: 0, max: 4 })));
+    el.appendChild(row);
+    el.appendChild(field("Alignment", seg([["left", "Left"], ["center", "Center"], ["right", "Right"]], w.align, v => setProp("align", v, { rerender: true }))));
+    el.appendChild(field("Font", fontSelect(w.font, v => setProp("font", v, { rerender: true })),
+      "Fonts installed on this PC. Arrows and symbols always use Segoe UI Symbol."));
+    el.appendChild(styleChecks(w));
+    el.appendChild(field("Color", colorControl(w.color, (v, commit) => commit ? setProp("color", v, { rerender: true }) : (w.color = v, schedulePreview(60)), { allowAuto: true }),
+      "Color by value uses the temperature colors for °C sensors."));
+  }
+
+  if (w.type === "bar" || w.type === "gauge" || w.type === "graph") {
+    const row = document.createElement("div"); row.className = "row";
+    row.append(field("Minimum", numInput(w.min, v => setProp("min", v), { step: "any" })),
+               field("Maximum", numInput(w.max, v => setProp("max", v), { step: "any" })));
+    el.appendChild(row);
+    el.appendChild(field("Color", colorControl(w.color, (v, commit) => commit ? setProp("color", v, { rerender: true }) : (w.color = v, schedulePreview(60)), { allowAuto: true })));
+    el.appendChild(field(w.type === "gauge" ? "Track color" : "Background", colorControl(w.bg, (v, commit) => commit ? setProp("bg", v) : (w.bg = v, schedulePreview(60)))));
+  }
+  if (w.type === "bar") el.appendChild(checkbox("Vertical (fills upward)", w.vertical, v => setProp("vertical", v)));
+  if (w.type === "gauge") {
+    const row = document.createElement("div"); row.className = "row";
+    row.append(field("Ring thickness", numInput(w.thickness, v => setProp("thickness", Math.max(2, v | 0)), { min: 2 })),
+               field("Decimals", numInput(w.decimals, v => setProp("decimals", Math.max(0, Math.min(4, v | 0))), { min: 0, max: 4 })));
+    el.appendChild(row);
+    el.appendChild(checkbox("Show the value in the middle", w.show_value, v => setProp("show_value", v, { rerender: true })));
+    if (w.show_value) {
+      el.appendChild(field("After the value", textInput(w.suffix, v => { w.suffix = v; afterChange(false); })));
+      el.appendChild(field("Value font", fontSelect(w.font, v => setProp("font", v, { rerender: true }))));
+      el.appendChild(styleChecks(w));
+      el.appendChild(field("Value color", colorControl(w.text_color, (v, commit) => commit ? setProp("text_color", v) : (w.text_color = v, schedulePreview(60)))));
+    }
+  }
+  if (w.type === "graph") {
+    el.appendChild(field("History shown", numInput(w.seconds, v => setProp("seconds", Math.max(5, Math.min(600, v | 0))), { min: 5, max: 600 }),
+      "Seconds of history, up to 10 minutes. New graphs fill in as readings arrive."));
+    el.appendChild(checkbox("Fit the scale to recent values", w.auto_scale, v => setProp("auto_scale", v)));
+    el.appendChild(checkbox("Shade under the line", w.fill, v => setProp("fill", v)));
+  }
+  if (w.type === "panel") {
+    el.appendChild(field("Fill", colorControl(w.fill, (v, commit) => commit ? setProp("fill", v, { rerender: true }) : (w.fill = v, schedulePreview(60)), { allowNone: true })));
+    el.appendChild(field("Outline", colorControl(w.outline, (v, commit) => commit ? setProp("outline", v, { rerender: true }) : (w.outline = v, schedulePreview(60)), { allowNone: true })));
+    const row = document.createElement("div"); row.className = "row";
+    row.append(field("Corner radius", numInput(w.radius, v => setProp("radius", Math.max(0, v | 0)), { min: 0 })),
+               field("Outline width", numInput(w.border, v => setProp("border", Math.max(0, v | 0)), { min: 0 })));
+    el.appendChild(row);
+  }
+
+  el.insertAdjacentHTML("beforeend", `<h3>Position and size</h3>`);
+  const pos = document.createElement("div"); pos.className = "row4";
+  [["x", "X"], ["y", "Y"], ["w", "Width"], ["h", "Height"]].forEach(([k, label]) =>
+    pos.appendChild(field(label, numInput(w[k], v => setProp(k, Math.max(k === "w" || k === "h" ? 4 : 0, Math.round(v))), { min: 0 }))));
+  el.appendChild(pos);
+}
+
+function inspectMedia(el) {
+  const m = S.cfg.media;
+  el.insertAdjacentHTML("beforeend", `<h2>Images</h2><p class="lede">Pictures and animated GIFs to show in Images mode. With more than one selected, they play as a slideshow.</p>`);
+  if (S.cfg.mode !== "media") {
+    const c = document.createElement("div"); c.className = "callout";
+    c.innerHTML = `The cooler is in Monitor mode. <button class="btn small" style="margin-left:6px">Switch to Images</button>`;
+    c.querySelector("button").onclick = () => { change(() => S.cfg.mode = "media"); sizeCanvas(); };
+    el.appendChild(c);
+  }
+  const drop = document.createElement("div"); drop.className = "drop";
+  drop.innerHTML = `Drop images here, or <button class="btn small" type="button">choose files</button>`;
+  drop.querySelector("button").onclick = () => { S.uploadTarget = "slideshow"; $("#fileInput").click(); };
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+  drop.ondragleave = () => drop.classList.remove("over");
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); upload([...e.dataTransfer.files]); };
+  el.appendChild(drop);
+
+  const list = document.createElement("div"); list.className = "media";
+  const items = m.items.filter(n => S.media.some(f => f.name === n));
+  const rest = S.media.filter(f => !items.includes(f.name));
+  if (!S.media.length) list.innerHTML = `<p class="note">No images yet. Added images are copied into ${esc(S.mediaDir || "the settings folder")}.</p>`;
+  [...items.map(n => S.media.find(f => f.name === n)), ...rest].forEach(f => {
+    const on = items.includes(f.name), idx = items.indexOf(f.name);
+    const row = document.createElement("div"); row.className = "mitem" + (on ? "" : " off");
+    row.innerHTML = `<img alt="" src="/api/media/thumb?name=${encodeURIComponent(f.name)}&t=${TOKEN}">
+      <div><div class="name" title="${esc(f.name)}">${esc(f.name)}</div>
+      <div class="meta">${on ? `Slide ${idx + 1} of ${items.length}` : "Not shown"}${f.animated ? ", animated" : ""}, ${(f.size / 1024).toFixed(0)} KB</div></div>
+      <div class="ctrls"></div>`;
+    const ctrls = row.querySelector(".ctrls");
+    const tgl = checkbox("Show", on, v => change(() => { m.items = v ? [...items, f.name] : items.filter(n => n !== f.name); }));
+    tgl.title = on ? "Remove from the slideshow" : "Add to the slideshow";
+    ctrls.appendChild(tgl);
+    if (on && items.length > 1) {
+      [["up", "Move earlier", "▲"], ["down", "Move later", "▼"]].forEach(([d, t, g]) => {
+        const b = document.createElement("button"); b.className = "btn icon small"; b.title = t; b.setAttribute("aria-label", t); b.textContent = g;
+        const j = d === "up" ? idx - 1 : idx + 1;
+        b.disabled = j < 0 || j >= items.length;
+        b.onclick = () => change(() => { const a = [...items]; [a[idx], a[j]] = [a[j], a[idx]]; m.items = a; });
+        ctrls.appendChild(b);
+      });
+    }
+    const del = document.createElement("button"); del.className = "btn icon small danger"; del.title = "Delete image"; del.setAttribute("aria-label", "Delete image"); del.textContent = "✕";
+    del.onclick = async () => {
+      if (!confirm(`Delete ${f.name}?`)) return;
+      const r = await api("/api/media/delete", { name: f.name });
+      if (!r.ok) return toast(r.error, true);
+      S.media = r.media; m.items = m.items.filter(n => n !== f.name);
+      afterChange();
+    };
+    ctrls.appendChild(del);
+    list.appendChild(row);
+  });
+  el.appendChild(list);
+
+  el.insertAdjacentHTML("beforeend", `<h3>Slideshow</h3>`);
+  el.appendChild(field("How pictures fit the screen", seg([["cover", "Fill", "Crop edges"], ["contain", "Fit", "Black bars"], ["stretch", "Stretch", "Distort"]], m.fit,
+    v => change(() => m.fit = v))));
+  el.appendChild(field("Background color", colorControl(m.background || "#000000", (v, commit) => {
+    if (commit) change(() => m.background = v, { inspector: false }); else { m.background = v; schedulePreview(60); }
+  }), "Shows through transparent parts of pictures and around them when using Fit."));
+  el.appendChild(field("Seconds per image", numInput(m.slide_seconds, v => change(() => m.slide_seconds = Math.max(1, Math.min(3600, v))), { min: 1, max: 3600 }),
+    "Animated GIFs finish their loop before the next image."));
+}
+
+async function upload(files, target = "slideshow") {
+  const imgs = files.filter(f => /\.(png|jpe?g|gif|bmp)$/i.test(f.name));
+  if (!imgs.length) return toast("Choose PNG, JPG, GIF or BMP files.", true);
+  let added = 0;
+  for (const f of imgs) {
+    toast(`Adding ${f.name}…`);
+    const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(f); });
+    const r = await api("/api/media", { name: f.name, data });
+    if (!r.ok) { toast(`${f.name}: ${r.error}`, true); continue; }
+    S.media = r.media; added++;
+    if (target === "background") change(() => layout().background_image = r.name, { inspector: false });
+    else change(() => S.cfg.media.items = [...S.cfg.media.items, r.name], { inspector: false });
+  }
+  renderInspector();
+  if (added) toast(target === "background"
+    ? "Background set. Save to show it on the cooler."
+    : `Added ${added} ${added === 1 ? "image" : "images"} to the slideshow. Save to show them on the cooler.`);
+}
+$("#fileInput").onchange = e => {
+  const target = S.uploadTarget || "slideshow"; S.uploadTarget = null;
+  const files = [...e.target.files];
+  upload(target === "background" ? files.slice(0, 1) : files, target);
+  e.target.value = "";
+};
+
+// ---------------------------------------------------------------- Save / status
+async function save() {
+  $("#save").disabled = true;
+  try {
+    const r = await api("/api/config", { config: S.cfg });
+    if (!r.ok) { toast(r.error, true); updateDirty(); return; }
+    S.savedJSON = JSON.stringify(S.cfg); updateDirty();
+    toast(r.service ? "Saved. The cooler updates within a couple of seconds." : "Saved. The cooler will update as soon as it's connected.");
+  } catch (e) { toast("Couldn't reach the tray app to save. Is it still running?", true); updateDirty(); }
+}
+$("#save").onclick = save;
+$("#revert").onclick = () => {
+  if (!confirm("Discard all unsaved changes?")) return;
+  snapshotUndo(); S.cfg = JSON.parse(S.savedJSON); S.sel = -1; afterChange(); renderToolbar(); sizeCanvas();
+};
+
+function setStatus(up) {
+  S.service = up;
+  const st = $("#status");
+  st.innerHTML = up ? `<span class="dot on"></span><span>Cooler connected</span>`
+                    : `<span class="dot off"></span><span>Cooler not connected</span>`;
+}
+
+let missedPolls = 0;
+function trayGone() {
+  // The tray app quit or was ended: nothing here works any more, so close like the rest of the app
+  if (document.body.classList.contains("gone")) return;
+  document.body.classList.add("gone");
+  document.body.insertAdjacentHTML("beforeend", `<div class="gone-card" role="alertdialog" aria-labelledby="goneTitle">
+    <h2 id="goneTitle">DeepCool LM was closed</h2>
+    <p>The tray app isn't running, so this window can't change settings. Start DeepCool LM from the Start menu to open it again.</p></div>`);
+  window.close();
+}
+async function pollSensors() {
+  try {
+    const r = await api("/api/sensors");
+    missedPolls = 0;
+    S.sensors = r.sensors; S.sensorMap = Object.fromEntries(r.sensors.map(s => [s.id, s]));
+    if (S.service !== r.service) { setStatus(r.service); if (S.section === "display") renderInspector(); }
+    const sel = $("#sensorSelect");
+    if (sel && document.activeElement !== sel) fillSensorSelect(sel, sel.value);
+  } catch (e) {
+    setStatus(false);
+    if (++missedPolls >= 2) trayGone();
+  }
+}
+
+window.addEventListener("beforeunload", e => { if (isDirty()) { e.preventDefault(); e.returnValue = ""; } });
+window.addEventListener("resize", sizeCanvas);
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  S.section = b.dataset.section;
+  document.querySelectorAll("nav button").forEach(x => x.toggleAttribute("aria-current", x === b));
+  if (S.section !== "layout") S.sel = -1;
+  b.setAttribute("aria-current", "page");
+  renderToolbar(); renderInspector(); sizeCanvas(); schedulePreview(0);
+});
+
+// ---------------------------------------------------------------- Boot
+(async function boot() {
+  try {
+    const st = await api("/api/state");
+    S.cfg = st.config; S.savedJSON = JSON.stringify(S.cfg);
+    S.defaults = st.defaults; S.wdefaults = st.widget_defaults; S.sizes = st.sizes; S.media = st.media; S.mediaDir = st.media_dir; S.fonts = st.fonts || [];
+    setStatus(st.service);
+    await pollSensors();
+  } catch (e) {
+    $("#inspector").innerHTML = `<h2>Can't load settings</h2><p class="lede">The tray app didn't answer. Quit it from the notification area and start DeepCool LM again from the Start menu.</p>`;
+    return;
+  }
+  renderToolbar(); renderInspector(); updateDirty(); sizeCanvas(); refreshPreview();
+  setInterval(pollSensors, 2000);
+  let lastTick = 0;
+  setInterval(() => {
+    const animated = S.section !== "media" && S.cfg.mode !== "media" && /\.gif$/i.test(layout().background_image || "");
+    const every = animated ? 250 : 1500;
+    if (!drag && Date.now() - lastTick >= every) { lastTick = Date.now(); schedulePreview(0); }
+  }, 250);
+})();
+</script>
+</body>
+</html>

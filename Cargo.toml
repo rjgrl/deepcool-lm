@@ -1,0 +1,20 @@
+[package]
+name = "deepcool-lm"
+version = "2.0.0"
+edition = "2021"
+description = "DeepCool LM series AIO cooler screen app for Windows (no third-party crates)"
+license = "MIT"
+
+# No [dependencies]: only the Rust standard library and Windows system DLLs,
+# so `cargo build --release` works offline with nothing to download.
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[lints.rust]
+# `--cfg wincheck` type-checks the Windows code on other platforms (no linking)
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(wincheck)'] }
