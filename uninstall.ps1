@@ -27,10 +27,12 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 }
 
 # Stop and remove the scheduled task
-if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
-    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-    Write-Ok 'Service stopped and removed'
+foreach ($name in @($TaskName, 'DeepCool LM Boot')) {
+    if (Get-ScheduledTask -TaskName $name -TaskPath '\' -ErrorAction SilentlyContinue) {
+        Stop-ScheduledTask -TaskName $name -TaskPath '\' -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName $name -TaskPath '\' -Confirm:$false
+        Write-Ok "Removed scheduled task: $name"
+    }
 }
 
 # Tray app: autostart entry and Start menu shortcut

@@ -21,6 +21,29 @@ pub const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
 pub const ERROR_ALREADY_EXISTS: u32 = 183;
 
 #[repr(C)]
+pub struct SECURITY_ATTRIBUTES {
+    pub nLength: u32,
+    pub lpSecurityDescriptor: *mut c_void,
+    pub bInheritHandle: BOOL,
+}
+
+#[repr(C)]
+pub struct SID_AND_ATTRIBUTES {
+    pub Sid: *mut c_void,
+    pub Attributes: u32,
+}
+
+#[repr(C)]
+pub struct TOKEN_USER {
+    pub User: SID_AND_ATTRIBUTES,
+}
+
+#[repr(C)]
+pub struct TOKEN_DEFAULT_DACL {
+    pub DefaultDacl: *mut c_void,
+}
+
+#[repr(C)]
 #[derive(Clone, Copy, Default, PartialEq, Debug)]
 pub struct GUID {
     pub data1: u32,
@@ -145,6 +168,9 @@ extern "system" {
     pub fn CreateFileW(name: *const u16, access: u32, share: u32, security: *mut c_void, disposition: u32, flags: u32, template: HANDLE) -> HANDLE;
     pub fn CloseHandle(h: HANDLE) -> BOOL;
     pub fn CreateMutexW(security: *mut c_void, initial_owner: BOOL, name: *const u16) -> HANDLE;
+    pub fn CreateEventW(security: *mut c_void, manual_reset: BOOL, initial_state: BOOL, name: *const u16) -> HANDLE;
+    pub fn OpenEventW(access: u32, inherit: BOOL, name: *const u16) -> HANDLE;
+    pub fn SetEvent(event: HANDLE) -> BOOL;
     pub fn GetLastError() -> u32;
     pub fn AttachConsole(pid: u32) -> BOOL;
     pub fn GetStdHandle(which: u32) -> HANDLE;
@@ -165,6 +191,8 @@ extern "system" {
     pub fn WaitForSingleObject(h: HANDLE, ms: u32) -> u32;
     pub fn SetProcessWorkingSetSize(process: HANDLE, min: usize, max: usize) -> BOOL;
     pub fn GetCurrentProcess() -> HANDLE;
+    pub fn GetCurrentThread() -> HANDLE;
+    pub fn LocalFree(memory: *mut c_void) -> *mut c_void;
 }
 
 pub const WAIT_TIMEOUT: u32 = 258;
@@ -192,6 +220,15 @@ pub const RRF_RT_REG_MULTI_SZ: u32 = 0x20;
 #[cfg_attr(windows, link(name = "advapi32", kind = "raw-dylib"))]
 extern "system" {
     pub fn SystemFunction036(buf: *mut c_void, len: u32) -> u8; // RtlGenRandom
+    pub fn OpenProcessToken(process: HANDLE, access: u32, token: *mut HANDLE) -> BOOL;
+    pub fn OpenThreadToken(thread: HANDLE, access: u32, as_self: BOOL, token: *mut HANDLE) -> BOOL;
+    pub fn GetTokenInformation(token: HANDLE, class: u32, data: *mut c_void, size: u32, required: *mut u32) -> BOOL;
+    pub fn SetTokenInformation(token: HANDLE, class: u32, data: *const c_void, size: u32) -> BOOL;
+    pub fn ConvertSidToStringSidW(sid: *mut c_void, text: *mut *mut u16) -> BOOL;
+    pub fn ConvertStringSecurityDescriptorToSecurityDescriptorW(text: *const u16, revision: u32, descriptor: *mut *mut c_void, size: *mut u32) -> BOOL;
+    pub fn GetSecurityDescriptorDacl(descriptor: *mut c_void, present: *mut BOOL, acl: *mut *mut c_void, defaulted: *mut BOOL) -> BOOL;
+    pub fn ImpersonateSelf(level: i32) -> BOOL;
+    pub fn RevertToSelf() -> BOOL;
     pub fn RegOpenKeyExW(key: HKEY, subkey: *const u16, options: u32, sam: u32, result: *mut HKEY) -> i32;
     pub fn RegEnumKeyExW(key: HKEY, index: u32, name: *mut u16, name_len: *mut u32, reserved: *mut u32, class: *mut u16, class_len: *mut u32, time: *mut FILETIME) -> i32;
     pub fn RegGetValueW(key: HKEY, subkey: *const u16, value: *const u16, flags: u32, kind: *mut u32, data: *mut c_void, len: *mut u32) -> i32;

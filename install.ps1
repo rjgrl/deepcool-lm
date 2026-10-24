@@ -20,6 +20,10 @@
 .PARAMETER Yes
     Answer "yes" to every prompt (non-interactive install).
 
+.PARAMETER StartAtBoot
+    Show saved content before sign-in using a limited, password-free scheduled
+    task under your Windows account. The tray app takes over at sign-in.
+
 .PARAMETER Orientation
     How the cooler is mounted: 'landscape' (screen wider than tall) or
     'portrait' (taller than wide). Shortcut for -Rotation 0 or 90.
@@ -31,6 +35,7 @@
 #>
 param(
     [switch]$Yes,
+    [switch]$StartAtBoot,
     [ValidateSet('landscape', 'portrait')]
     [string]$Orientation,
     [ValidateSet(0, 90, 180, 270)]
@@ -109,6 +114,16 @@ if (Test-Path $ConfigFile) {
     } catch { }
 }
 $oldTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+$bootTask = Get-ScheduledTask -TaskName 'DeepCool LM Boot' -TaskPath '\' -ErrorAction SilentlyContinue
+$hadBootStartup = $bootTask -and $bootTask.Settings.Enabled
+if ($bootTask) {
+    if (@($bootTask.Actions).Count -ne 1 -or $bootTask.Actions[0].Execute -ne $AppExe -or
+        $bootTask.Actions[0].Arguments -ne '--boot') {
+        throw "An unexpected task already uses the name 'DeepCool LM Boot'; it was not changed."
+    }
+    Disable-ScheduledTask -TaskName 'DeepCool LM Boot' -TaskPath '\' | Out-Null
+    Stop-ScheduledTask -TaskName 'DeepCool LM Boot' -TaskPath '\' -ErrorAction SilentlyContinue
+}
 if ($null -eq $previousRotation -and $oldTask) {
     $oldArgs = @($oldTask.Actions | ForEach-Object { $_.Arguments }) -join ' '
     if ($oldArgs -match '--rotation\s+(0|90|180|270)') { $previousRotation = [int]$Matches[1] }
@@ -157,7 +172,7 @@ foreach ($pattern in $leftovers) {
 if ($removedOld) { Write-Ok 'Removed files from the older Python version' }
 Remove-ItemProperty -Path $RunKeyHKLM -Name 'DeepCool LM Tray' -ErrorAction SilentlyContinue
 $otherTasks = @(Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object {
-    $_.TaskName -ne $TaskName -and
+    $_.TaskName -notin @($TaskName, 'DeepCool LM Boot') -and
     (@($_.Actions | ForEach-Object { "$($_.Execute) $($_.Arguments)" }) -join ' ') -like '*deepcool*'
 })
 foreach ($t in $otherTasks) {
@@ -284,7 +299,10 @@ if (Test-Path $TrayIcon) { $lnk.IconLocation = $TrayIcon }
 $lnk.Save()
 Write-Ok 'Start menu shortcut: DeepCool LM'
 # Your own sign-in entry; the app's tray menu can turn it on and off too
-if (Confirm-Choice 'Start DeepCool LM when you sign in? (the cooler screen runs while the app is open)') {
+if ($StartAtBoot -or $hadBootStartup) {
+    & (Join-Path $PSScriptRoot 'enable-boot-start.ps1')
+    Write-Ok 'Boot display enabled; the tray app takes over at sign-in'
+} elseif (Confirm-Choice 'Start DeepCool LM when you sign in? (the cooler screen runs while the app is open)') {
     & $Shim autostart on | Out-Null
     Write-Ok 'DeepCool LM will start when you sign in'
 } else {

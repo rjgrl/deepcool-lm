@@ -34,6 +34,7 @@ Usage:
   deepcool-lm                     Start the app: cooler screen, tray icon and dashboard
   deepcool-lm --open              Start (if needed) and open the dashboard
   deepcool-lm --no-tray           Run the screen and dashboard without a tray icon
+  deepcool-lm --boot              Display only, before sign-in (scheduled task)
 
   deepcool-lm monitor             Back to the live monitor (after image/solid)
   deepcool-lm image FILE          Show a picture
@@ -260,14 +261,21 @@ fn cmd_autostart(arg: Option<&str>) -> ExitCode {
 /// The app itself: screen engine, IPC, dashboard server and (on Windows) the tray.
 fn run_app(cli_rotation: Option<i32>, open: bool, tray: bool) -> ExitCode {
     #[cfg(any(windows, wincheck))]
-    {
+    let _boot_session = {
         if tray && !win::tray::single_instance() {
             return ExitCode::SUCCESS; // the running copy opens its dashboard
         }
         if tray {
             log::init(&win::tray::log_path());
         }
-    }
+        match win::boot::user_session() {
+            Ok(session) => session,
+            Err(e) => {
+                log!("Cannot take over the boot display: {}", e);
+                return fail(&e);
+            }
+        }
+    };
     log!("DeepCool LM {} starting", env!("CARGO_PKG_VERSION"));
     let engine = Arc::new(engine::Engine::new(cli_rotation.unwrap_or_else(env_rotation), 1.0));
     if let Err(e) = ipc::start(engine.clone()) {
@@ -309,7 +317,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let gui = args.command.is_none() && !args.flags.iter().any(|f| f == "--help" || f == "-h" || f == "--no-tray");
+    let gui = args.command.is_none() && !args.flags.iter().any(|f| f == "--help" || f == "-h" || f == "--no-tray" || f == "--boot");
     #[cfg(any(windows, wincheck))]
     if !gui {
         win::attach_console();
@@ -317,6 +325,18 @@ fn main() -> ExitCode {
     if args.flags.iter().any(|f| f == "--help" || f == "-h") {
         println!("{}", USAGE);
         return ExitCode::SUCCESS;
+    }
+    if args.flags.iter().any(|f| f == "--boot") {
+        if args.command.is_some() || args.flags.iter().any(|f| f != "--boot") {
+            return fail("--boot cannot be combined with commands or other startup modes");
+        }
+        #[cfg(any(windows, wincheck))]
+        return match win::boot::run(args.rotation.unwrap_or_else(env_rotation)) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => { log!("Boot display failed: {}", e); fail(&e) },
+        };
+        #[cfg(not(any(windows, wincheck)))]
+        return fail("Boot startup is supported on Windows only");
     }
     let rest = &args.rest;
     match args.command.as_deref() {
@@ -339,6 +359,11 @@ fn main() -> ExitCode {
             // not running: drive the screen from this terminal
             let interval = opt(rest, "--interval").and_then(|v| v.parse::<f64>().ok()).unwrap_or(1.0);
             println!("Displaying system monitor (Ctrl+C to stop)...");
+            #[cfg(any(windows, wincheck))]
+            let _boot_session = match win::boot::user_session() {
+                Ok(session) => session,
+                Err(e) => return fail(&e),
+            };
             let engine = Arc::new(engine::Engine::new(args.rotation.unwrap_or_else(env_rotation), interval));
             if let Err(e) = ipc::start(engine.clone()) {
                 log!("IPC server not started: {}", e);

@@ -1,4 +1,5 @@
 //! Windows-only code: system information, WinUSB, GDI+ drawing and the tray.
+pub mod boot;
 pub mod ffi;
 pub mod gdiplus;
 pub mod sys;

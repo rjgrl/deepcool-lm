@@ -155,7 +155,7 @@ fn open_path(path: &str) -> Result<WinUsb, String> {
         let file = CreateFileW(
             wide(path).as_ptr(),
             GENERIC_READ | GENERIC_WRITE,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            0, // one display owner across boot, interactive sessions and other software
             std::ptr::null_mut(),
             OPEN_EXISTING,
             FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
@@ -165,6 +165,7 @@ fn open_path(path: &str) -> Result<WinUsb, String> {
             let e = GetLastError();
             return Err(match e {
                 5 => "access denied (is DeepCool's own app, or another copy of this one, using the cooler?)".into(),
+                32 => "the cooler is already in use by another display process".into(),
                 _ => format!("can't open the device (error {})", e),
             });
         }

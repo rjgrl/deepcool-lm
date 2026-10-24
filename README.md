@@ -74,6 +74,20 @@ The installer:
 
 If the app isn't built yet and Rust is installed, the installer offers to build it. Options: `-Yes` accepts every prompt, and `-Rotation 0|90|180|270` (or `-Orientation landscape|portrait`) sets the screen orientation.
 
+### Start the LCD before sign-in
+
+Add `-StartAtBoot` when installing, from an administrator PowerShell using your normal Windows account:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -StartAtBoot
+```
+
+For an already installed, updated executable, run `powershell -ExecutionPolicy Bypass -File .\enable-boot-start.ps1` instead. The **DeepCool LM Boot** scheduled task runs `--boot` after Windows starts, without waiting for sign-in. It displays your saved media or layout and waits for USB if necessary. It has no tray icon, dashboard or command server. At sign-in, the normal app asks it to finish, waits for it to release the cooler without blanking it, then takes over. A late boot task skips the screen while the normal app is running.
+
+The task uses your account with limited privileges and S4U logon: no Windows password is stored. Network shares and EFS-encrypted media are unavailable before sign-in. CPU temperatures appear once LibreHardwareMonitor starts; this option does not start LibreHardwareMonitor. GDI+ rendering in this noninteractive task must be verified on the actual PC. It is a scheduled application, not a Windows service.
+
+This starts during **Windows boot**, not BIOS/POST, and cannot guarantee recovery from a cooler that needs a physical power reset. Boot logs are in `C:\ProgramData\deepcool-lm\boot.log`. To disable boot startup, disable **DeepCool LM Boot** in Task Scheduler; sign-in startup still works. To stop an active boot worker gracefully, start the normal app. Turning off **Start when I sign in** affects the tray app only, so leave it enabled when using boot startup.
+
 ### Without the installer
 
 `deepcool-lm.exe` also works on its own: copy it anywhere and run it. The dashboard is built in and it needs no other files. On first save it creates the settings folder in `C:\ProgramData\deepcool-lm`. To start it when you sign in, right-click its tray icon and pick **Start when I sign in** (or run `deepcool-lm autostart on`). If you move the exe later, start it once from its new place and the sign-in entry follows it.
@@ -91,7 +105,7 @@ Look for the **DeepCool LM** icon near the clock. Click it to open the dashboard
 - turn **Start when I sign in** on or off
 - quit
 
-The app *is* the screen driver. It runs the screen from when it starts until you quit, waits for the cooler if it isn't ready, and reconnects when it's unplugged. **Quit** turns the screen off and closes the dashboard. The screen stays off until you sign in again, because nothing runs before sign-in.
+The app *is* the screen driver. It runs the screen from when it starts until you quit, waits for the cooler if it isn't ready, and reconnects when it's unplugged. **Quit** turns the screen off and closes the dashboard. By default it starts at sign-in; the optional boot task above can display your content before sign-in.
 
 The dashboard has three sections:
 
@@ -152,6 +166,8 @@ Commands go to the running app. When it isn't running, they talk to the cooler d
 | App | `C:\Program Files\deepcool-lm\app\deepcool-lm.exe` |
 | Settings and uploaded images | `C:\ProgramData\deepcool-lm\` |
 | Log | `%LOCALAPPDATA%\deepcool-lm\tray.log` |
+| Boot log (optional) | `C:\ProgramData\deepcool-lm\boot.log` |
+| Start before sign-in (optional) | Task Scheduler → **DeepCool LM Boot** |
 | Start at sign-in | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, value `DeepCool LM` |
 
 ## Uninstall
@@ -204,9 +220,7 @@ The `src/platform/unix.rs` stand-ins exist only for development and tests on oth
 
 ## Credits
 
-A big thank you to **[daedlock](https://github.com/daedlock)**, author of the original [deepcool-lm](https://github.com/daedlock/deepcool-lm) Linux driver this project is forked from. They reverse-engineered DeepCool's USB protocol: the frame format, the packet checksums and the brightness and Zen commands. None of this would exist without that work. 🙏
-
-This fork is a Windows-only rewrite in Rust. If you're on Linux, use the [original project](https://github.com/daedlock/deepcool-lm).
+The USB protocol was worked out by reverse engineering DeepCool's official software, in the original Linux driver this project grew from. This version is a Windows-only rewrite in Rust.
 
 ## License
 
